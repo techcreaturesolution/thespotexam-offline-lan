@@ -38,6 +38,7 @@ export class Center {
     this.cloud = new CloudClient(cfg.cloudUrl, () => this.creds());
     this.paper = new PaperService(this.db, this.sealer, this.audit, this.cloud, path.join(cfg.dataDir, 'packages'), () => this.centerCode(), () => this.db.kvGet('cloud_public_key'));
     this.engine = new ExamEngine(this.db, this.paper, this.audit, this.sealer, cfg);
+    this.paper.statusBase = () => this.statusBody();
   }
 
   centerCode() { return this.db.kvGet('center_code'); }
@@ -81,13 +82,17 @@ export class Center {
     return this.db.get<{ n: number }>('SELECT COUNT(*) n FROM machines WHERE last_seen_at > ?', new Date(Date.now() - this.cfg.clientTimeoutSeconds * 1000).toISOString())!.n;
   }
 
-  async heartbeat() {
-    if (!this.creds()) return;
+  private statusBody() {
     const running = this.paper.list().find((e) => ['running', 'paused'].includes(e.state));
-    await this.cloud.status({
+    return {
       appVersion: this.cfg.appVersion, hostname: os.hostname(), lanIp: this.cfg.lanIp, examState: running?.state || 'idle',
       connectedClients: this.connectedClients(), pendingSyncBatches: 0,
-    });
+    };
+  }
+
+  async heartbeat() {
+    if (!this.creds()) return;
+    await this.cloud.status(this.statusBody());
   }
 
   startBackground() {
