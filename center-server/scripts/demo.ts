@@ -23,11 +23,15 @@ import { startMockCloud } from '../test/mockCloud';
   const cfg = loadConfig({ dataDir, cloudUrl: cloud.url });
   const center = new Center(cfg);
   const adminPassword = 'Admin@12345';
-  center.setupAdmin(adminPassword, true);
-  await center.activate(cloud.centerCode, cloud.activationKey, 'demo');
-  await center.paper.sync('demo');
-  await center.paper.unlock(cloud.examId, 'demo', cloud.releaseCode);
-  if (process.env.DEMO_AUTOSTART) center.engine.startExam(cloud.examId, 'demo');
+  // Re-running with an existing CENTER_DATA_DIR resumes it as-is (restart / LAN-drop testing).
+  const resumed = center.status().activated;
+  if (!resumed) {
+    center.setupAdmin(adminPassword, true);
+    await center.activate(cloud.centerCode, cloud.activationKey, 'demo');
+    await center.paper.sync('demo');
+    await center.paper.unlock(cloud.examId, 'demo', cloud.releaseCode);
+    if (process.env.DEMO_AUTOSTART) center.engine.startExam(cloud.examId, 'demo');
+  }
 
   const app = createApp(center);
   let server: http.Server;
@@ -42,7 +46,7 @@ import { startMockCloud } from '../test/mockCloud';
 
   console.log(`\nCenter Server demo on ${cfg.tls ? 'https' : 'http'}://${cfg.lanIp}:${cfg.port}  (UDP discovery :${cfg.discoveryPort}, data ${dataDir})`);
   if (center.certFingerprint) console.log(`Certificate SHA-256: ${center.certFingerprint}`);
-  console.log(`Exam ${cloud.examId} unlocked${process.env.DEMO_AUTOSTART ? ' and started' : ''}. Admin password: ${adminPassword}`);
+  console.log(resumed ? `Resumed existing data dir; exam ${cloud.examId} is ${center.paper.exam(cloud.examId).state}. Admin password: ${adminPassword}` : `Exam ${cloud.examId} unlocked${process.env.DEMO_AUTOSTART ? ' and started' : ''}. Admin password: ${adminPassword}`);
   console.log('Candidates (roll / password):', Object.entries(cloud.accessCodes).map(([r, p]) => `${r} / ${p}`).join(', '));
   console.log(`Start: POST /admin/login {"password":"${adminPassword}"} then POST /admin/exams/${cloud.examId}/start with Bearer token\n`);
 

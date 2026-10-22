@@ -1,0 +1,22 @@
+{
+  // Copy to %ProgramData%\TheSpotExam\CandidateClient\client.json (or next to the .exe as client.json).
+  // Everything is optional. Without serverHost the Connect screen offers LAN discovery / manual entry.
+  "serverHost": null,
+  "serverPort": 8443,
+  // Preset SHA-256 pin (as printed by the Center Server). When set, no on-screen confirmation is needed.
+  "serverFingerprint": null,
+  "discoveryPort": 41234,
+  "autosaveSeconds": 5,
+  "debounceMilliseconds": 800,
+  // PBKDF2 hash, never the plaintext. Generate with:  TheSpot.CandidateClient.exe --hash-password "<password>"
+  // Required to exit kiosk mode (Ctrl+Alt+Shift+F12), to change the server and to confirm a new pin.
+  "invigilatorPasswordHash": null,
+  // Default: %LOCALAPPDATA%\TheSpotExam\CandidateClient (env THESPOT_CLIENT_DATA overrides)
+  "dataDir": null,
+  "kiosk": {
+    "enabled": true,
+    "blockKeys": true,
+    "excludeFromCapture": true,
+    "clearClipboard": true
+  }
+}
