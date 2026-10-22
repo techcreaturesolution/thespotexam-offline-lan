@@ -17,6 +17,8 @@ export interface ExamRow {
 /** Package lifecycle: download → verify → LOCKED on disk → unlock (OTP or online key) → decrypted in memory only. */
 export class PaperService {
   private cache = new Map<string, PaperPayload>();
+  /** Center-level fields sent with every status report (the cloud replaces its last report each time). */
+  statusBase: () => Record<string, unknown> = () => ({});
   constructor(
     private readonly db: Db,
     private readonly sealer: Sealer,
@@ -100,7 +102,7 @@ export class PaperService {
   }
 
   private async report(examId: string, paperStatus: string, packageId?: string, message?: string) {
-    await this.cloud.status({ exams: [{ examId, paperStatus, packageId, message }] }).catch(() => undefined);
+    await this.cloud.status({ ...this.statusBase(), exams: [{ examId, paperStatus, packageId, message }] }).catch(() => undefined);
   }
 
   /** Re-reads the locked file and re-checks hash + signature (tamper detection on disk). */

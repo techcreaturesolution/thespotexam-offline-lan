@@ -7,6 +7,7 @@ npm install
 npm run dev          # tsx watch; CENTER_TLS=false for plain HTTP during development
 npm run lint && npm run typecheck && npm test
 npm run build && npm start
+npm run demo         # mock cloud + Center Server with an unlocked demo exam (for client development); DEMO_AUTOSTART=1 starts it
 ```
 
 ## Configuration
