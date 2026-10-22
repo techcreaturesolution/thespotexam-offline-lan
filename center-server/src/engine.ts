@@ -245,8 +245,9 @@ export class ExamEngine {
     const a = this.db.get<AttemptRow>('SELECT * FROM attempts WHERE exam_id = ? AND candidate_id = ?', aIn.exam_id, aIn.candidate_id)!;
     if (FINAL_STATUSES.includes(a.status)) return { status: a.status, submittedAt: a.submitted_at, alreadySubmitted: true };
     if (a.status !== 'in_progress') throw new HttpError(409, 'Exam has not started for this candidate');
-    this.finalize(e, a, 'submitted', `candidate:${a.roll_number}`);
-    return { status: 'submitted', submittedAt: nowIso(), alreadySubmitted: false };
+    const status: AttemptStatus = e.started_at && this.remainingSec(e, a) <= 0 ? 'auto_submitted' : 'submitted';
+    this.finalize(e, a, status, `candidate:${a.roll_number}`);
+    return { status, submittedAt: nowIso(), alreadySubmitted: false };
   }
 
   logViolations(machineId: string, a: AttemptRow | null, items: { type: string; detail?: string; at?: string }[]) {

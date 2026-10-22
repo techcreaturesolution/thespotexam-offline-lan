@@ -129,7 +129,14 @@ describe('Center Server phase 2', () => {
   });
 
   it('auto-submits on timeout; candidate with extra time continues', async () => {
-    for (let i = 0; i < 11; i++) center.engine.tick(5000);
+    let timeUpSubmit: { status: string } | undefined;
+    for (let i = 0; i < 55; i++) {
+      center.engine.tick(1000);
+      if (timeUpSubmit) continue;
+      const st = (await request(app).get('/exam/state').set(C(m2, s2))).body.data;
+      if (st.attemptStatus === 'in_progress' && st.remainingSeconds <= 0) timeUpSubmit = (await request(app).post('/exam/submit').set(C(m2, s2)).send({})).body.data;
+    }
+    assert.equal(timeUpSubmit?.status, 'auto_submitted', 'a client submit after time-up is recorded as auto_submitted');
     const live = (await request(app).get(`/admin/exams/${cloud.examId}/live`).set(A())).body.data;
     const r2 = live.candidates.find((c: { rollNumber: string }) => c.rollNumber === 'R002');
     const r1 = live.candidates.find((c: { rollNumber: string }) => c.rollNumber === 'R001');
