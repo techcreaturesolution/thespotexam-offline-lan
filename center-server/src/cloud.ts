@@ -38,6 +38,9 @@ export class CloudClient {
   exams() { return this.request<CloudExam[]>('GET', '/center/exams'); }
   manifest(examId: string) { return this.request<CloudManifest>('GET', `/paper/manifest/${examId}`); }
   releaseKey(examId: string) { return this.request<{ packageId: string; paperKey: string }>('POST', `/paper/key/${examId}`, {}); }
+  uploadResults(payload: string, signature: string) {
+    return this.request<{ ack: string; signature: string; replayed?: boolean }>('POST', '/results/upload', { payload, signature });
+  }
   status(body: Record<string, unknown>) { return this.request<{ serverTime: string }>('POST', '/center/status', body); }
 
   /** Downloads to `dest`, resuming from an existing partial file via HTTP Range. */

@@ -59,6 +59,22 @@ const check = (cond: unknown, label: string, extra?: unknown) => { console.log(`
   const list2 = await fetch(`${cloudUrl}/offline-centers`, { headers: { Authorization: `Bearer ${fx.adminToken}` } }).then((r) => r.json());
   check((list2.data || []).find((c: { centerCode: string }) => c.centerCode === fx.centerCode)?.lastReport?.hostname === os.hostname(), 'heartbeat reaches cloud');
 
+  const st = await center.sync.run({ force: true });
+  const mineSync = st.find((x) => x.examId === fx.examId);
+  check(mineSync?.status === 'synced' && mineSync.attempts.synced === fx.accessCodes.length, 'signed results uploaded, cloud ack verified, marked synced', mineSync);
+  const again = await center.sync.retryNow();
+  check(again.find((x) => x.examId === fx.examId)?.status === 'synced', 'second sync pass is a no-op');
+  const b0 = center.db.get<{ payload: string; signature: string }>('SELECT payload, signature FROM sync_batches WHERE exam_id = ? ORDER BY batch_index', fx.examId)!;
+  const replay = await center.cloud.uploadResults(b0.payload, b0.signature);
+  check(replay.replayed === true, 'cloud replays the ack for a re-sent batch (no double count)');
+  const forged = await center.cloud.uploadResults(b0.payload.replace('"submitted"', '"disqualified"'), b0.signature).then(() => null, (e: { status?: number }) => e.status);
+  check(forged === 422 || forged === 400, 'cloud rejects a tampered result package', forged);
+  const rec = await fetch(`${cloudUrl}/offline-centers/assignments/${fx.assignmentId}/reconciliation`, { headers: { Authorization: `Bearer ${fx.adminToken}` } }).then((r) => r.json());
+  check(rec.data?.syncStatus === 'synced' && rec.data?.received === fx.accessCodes.length && rec.data?.submitted === 1 && rec.data?.missing === 0, 'cloud reconciliation counts match the center', rec.data);
+  await center.heartbeat();
+  const list3 = await fetch(`${cloudUrl}/offline-centers`, { headers: { Authorization: `Bearer ${fx.adminToken}` } }).then((r) => r.json());
+  check((list3.data || []).find((c: { centerCode: string }) => c.centerCode === fx.centerCode)?.lastReport?.pendingSyncBatches === 0, 'heartbeat reports 0 pending sync batches');
+
   center.stop();
   fs.rmSync(dir, { recursive: true, force: true });
   console.log(failures ? `\n${failures} check(s) failed` : '\nAll checks passed');

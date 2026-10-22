@@ -58,6 +58,8 @@ export const createApp = (c: Center) => {
   app.get('/admin/exams/:examId/live', ok((req) => { admin(req); return c.engine.live(req.params.examId); }));
   app.get('/admin/exams/:examId/verify', ok((req) => { admin(req); return { answers: c.engine.verifyAnswers(req.params.examId), audit: c.audit.verify() }; }));
   app.get('/admin/violations', ok((req) => { admin(req); return c.engine.violations(req.query.examId as string | undefined, Number(req.query.sinceId || 0)); }));
+  app.get('/admin/sync', ok((req) => { admin(req); return { pendingBatches: c.sync.pendingBatches(), exams: c.sync.status() }; }));
+  app.post('/admin/sync/run', ok((req) => { admin(req); return c.sync.retryNow(); }));
   app.get('/admin/audit', ok((req) => { admin(req); return { entries: c.audit.list(Number(req.query.limit || 200), req.query.examId as string | undefined), chain: c.audit.verify() }; }));
 
   app.use((_req, res) => res.status(404).json({ success: false, message: 'Not found' }));

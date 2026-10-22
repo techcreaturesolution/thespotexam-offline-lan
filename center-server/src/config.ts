@@ -14,6 +14,10 @@ export interface Config {
   clientTimeoutSeconds: number;
   lateSyncWindowSeconds: number;
   retentionDays: number;
+  syncIntervalSeconds: number;
+  syncBatchSize: number;
+  syncBackoffBaseSeconds: number;
+  syncBackoffMaxSeconds: number;
   appVersion: string;
 }
 
@@ -48,6 +52,10 @@ export const loadConfig = (overrides: Partial<Config> = {}): Config => {
     clientTimeoutSeconds: num(process.env.CLIENT_TIMEOUT_SECONDS, file.clientTimeoutSeconds ?? 30),
     lateSyncWindowSeconds: num(process.env.LATE_SYNC_WINDOW_SECONDS, file.lateSyncWindowSeconds ?? 600),
     retentionDays: num(process.env.RETENTION_DAYS, file.retentionDays ?? 30),
+    syncIntervalSeconds: num(process.env.SYNC_INTERVAL_SECONDS, file.syncIntervalSeconds ?? 30),
+    syncBatchSize: num(process.env.SYNC_BATCH_SIZE, file.syncBatchSize ?? 50),
+    syncBackoffBaseSeconds: num(process.env.SYNC_BACKOFF_BASE_SECONDS, file.syncBackoffBaseSeconds ?? 15),
+    syncBackoffMaxSeconds: num(process.env.SYNC_BACKOFF_MAX_SECONDS, file.syncBackoffMaxSeconds ?? 900),
     appVersion: process.env.npm_package_version || '0.1.0',
     ...overrides,
   };
