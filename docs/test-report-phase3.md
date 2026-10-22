@@ -46,12 +46,13 @@ time-up auto-submit, server auto-submitted while offline + late sync, manual sub
 1. Hidden exit combo did not fire: `LLKHF_ALTDOWN` is not set when Ctrl is also held. Alt is now also read with
    `GetAsyncKeyState(VK_MENU)`. Re-tested: PASS (h).
 2. Countdown ran while the exam was still waiting to start (`g0-waiting.png` shows 01:56 before the start). The clock is now
-   frozen unless the server reports `examState: running`. Covered by a unit test; **not re-checked in the UI**.
+   frozen unless the server reports `examState: running`. Re-tested in the UI: TIME LEFT stayed 02:00 for >23 s while waiting, then counted down after the admin start: PASS.
 3. In run g2 the client restored 3 cached answers from an earlier server with the same exam id; they were marked as
    already acknowledged, so the new server only received 1 (`g5-live-auto.json`: `answered: 1`). Login merge now re-queues
    every local answer the server does not hold. Re-tested in scenario i: PASS.
 4. Finished screen said "Exam submitted" after a time-up submit; it now says "Time is up … submitted automatically".
-   Not re-checked in the UI.
+   Re-tested with R002 on a fresh 2-minute demo (natural expiry, no manual submit): PASS; server `submitted`, client log
+   `finished submitted auto=True`.
 5. Invalid `client.json` crashed the app; it now shows a message and exits.
 
 ## Notes and what could NOT be verified
