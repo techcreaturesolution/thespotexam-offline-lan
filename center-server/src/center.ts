@@ -8,6 +8,7 @@ import { generateKeyPair, randomToken, Sealer, sha256Hex, verifyScrypt } from '.
 import { Db, nowIso } from './db';
 import { ExamEngine } from './engine';
 import { PaperService } from './paper';
+import { SyncEngine } from './sync';
 import { HttpError } from './types';
 
 export const hardwareFingerprint = () => {
@@ -28,6 +29,7 @@ export class Center {
   readonly cloud: CloudClient;
   readonly paper: PaperService;
   readonly engine: ExamEngine;
+  readonly sync: SyncEngine;
   certFingerprint = '';
   private hb?: NodeJS.Timeout;
 
@@ -38,6 +40,13 @@ export class Center {
     this.cloud = new CloudClient(cfg.cloudUrl, () => this.creds());
     this.paper = new PaperService(this.db, this.sealer, this.audit, this.cloud, path.join(cfg.dataDir, 'packages'), () => this.centerCode(), () => this.db.kvGet('cloud_public_key'));
     this.engine = new ExamEngine(this.db, this.paper, this.audit, this.sealer, cfg);
+    this.sync = new SyncEngine(this.db, this.cloud, this.paper, this.engine, this.audit, cfg, () => {
+      const centerCode = this.db.kvGet('center_code');
+      const privateKey = this.signingKey();
+      const publicKey = this.db.kvGet('center_public_key');
+      const cloudPublicKey = this.db.kvGet('cloud_public_key');
+      return centerCode && privateKey && publicKey && cloudPublicKey ? { centerCode, privateKey, publicKey, cloudPublicKey } : null;
+    });
     this.paper.statusBase = () => this.statusBody();
   }
 
@@ -86,7 +95,7 @@ export class Center {
     const running = this.paper.list().find((e) => ['running', 'paused'].includes(e.state));
     return {
       appVersion: this.cfg.appVersion, hostname: os.hostname(), lanIp: this.cfg.lanIp, examState: running?.state || 'idle',
-      connectedClients: this.connectedClients(), pendingSyncBatches: 0,
+      connectedClients: this.connectedClients(), pendingSyncBatches: this.sync.pendingBatches(),
     };
   }
 
@@ -100,8 +109,9 @@ export class Center {
     const beat = () => this.heartbeat().catch(() => undefined);
     beat();
     this.hb = setInterval(beat, this.cfg.heartbeatSeconds * 1000);
+    this.sync.start();
   }
-  stop() { this.engine.stop(); if (this.hb) clearInterval(this.hb); this.db.close(); }
+  stop() { this.engine.stop(); this.sync.stop(); if (this.hb) clearInterval(this.hb); this.db.close(); }
 
   // ───────── local admin auth ─────────
   setupAdmin(password: string, loopback: boolean) {

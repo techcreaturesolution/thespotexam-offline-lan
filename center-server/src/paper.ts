@@ -43,6 +43,14 @@ export class PaperService {
   }
 
   /** Pull the assigned exam list and download/verify any package that is missing or was rebuilt. */
+  /** Removes the local package file and paper key for an exam whose results are synced and past retention. */
+  purge(examId: string) {
+    const row = this.exam(examId);
+    if (row.package_path) fs.rmSync(row.package_path, { force: true });
+    this.cache.delete(examId);
+    this.db.run(`UPDATE exams SET package_path = NULL, sealed_paper_key = NULL, state_message = 'Purged after retention', updated_at = ? WHERE exam_id = ?`, nowIso(), examId);
+  }
+
   async sync(actor = 'system'): Promise<{ examId: string; state: string; message?: string }[]> {
     const exams = await this.cloud.exams();
     const out: { examId: string; state: string; message?: string }[] = [];

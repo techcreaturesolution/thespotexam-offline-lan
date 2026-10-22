@@ -41,12 +41,15 @@ export const startMockCloud = async (opts: { durationMinutes?: number; mode?: 'o
   const wrappedKey = { alg: 'scrypt+aes-256-gcm', salt: salt.toString('base64'), N: 16384, r: 8, p: 1, iv: w.iv.toString('base64'), tag: w.tag.toString('base64'), wrappedKey: w.ciphertext.toString('base64') };
   const apiToken = 'tok_' + crypto.randomUUID();
   const statusReports: unknown[] = [];
-  const state = { keyLocked: false, served: file };
+  const state = { keyLocked: false, served: file, centerPublicKey: '', uploadFailures: 0, loseAck: false, tamperAck: false };
+  const batches = new Map<string, { sha: string; ack: string; signature: string }>();
+  const attemptsByKey = new Map<string, { sha: string; status: string; rollNumber: string }>();
+  const uploads: { batchId: string; replayed: boolean }[] = [];
 
   const app = express();
   app.use(express.json());
   const auth: express.RequestHandler = (req, res, next) => (req.header('X-Center-Id') === centerCode && req.header('Authorization') === `Bearer ${apiToken}` ? next() : res.status(401).json({ success: false, message: 'Invalid center credentials' }));
-  app.post('/center/activate', (req, res) => req.body.activationKey === activationKey ? res.json({ success: true, data: { centerCode, apiToken, cloudPublicKey: signing.publicKey, center: { name: 'Test Center' } } }) : res.status(401).json({ success: false, message: 'Invalid Center ID or activation key' }));
+  app.post('/center/activate', (req, res) => req.body.activationKey === activationKey ? (state.centerPublicKey = req.body.publicKey, res.json({ success: true, data: { centerCode, apiToken, cloudPublicKey: signing.publicKey, center: { name: 'Test Center' } } })) : res.status(401).json({ success: false, message: 'Invalid Center ID or activation key' }));
   app.get('/center/exams', auth, (_req, res) => res.json({ success: true, data: [{ examId, title: 'Mock Exam', scheduledStart: new Date().toISOString(), scheduledEnd: new Date().toISOString(), totalDurationMinutes: payload.exam.totalDurationMinutes, packageId, keyReleaseMode: opts.mode || 'otp', keyReleaseAt: new Date().toISOString(), paperStatus: 'not_downloaded', syncStatus: 'not_started' }] }));
   app.get('/paper/manifest/:id', auth, (_req, res) => res.json({ success: true, data: { examId, packageId, size: file.length, sha256: sha256Hex(file), keyReleaseMode: opts.mode || 'otp', keyReleaseAt: new Date().toISOString(), wrappedKey: opts.mode === 'online' ? undefined : wrappedKey, cloudPublicKey: signing.publicKey } }));
   app.get('/paper/download/:id', auth, (req, res) => {
@@ -55,10 +58,34 @@ export const startMockCloud = async (opts: { durationMinutes?: number; mode?: 'o
     res.end(state.served);
   });
   app.post('/paper/key/:id', auth, (_req, res) => state.keyLocked ? res.status(403).json({ success: false, message: 'Key is time-locked' }) : res.json({ success: true, data: { packageId, paperKey: paperKey.toString('base64') } }));
+  app.post('/results/upload', auth, (req, res) => {
+    if (state.uploadFailures > 0) { state.uploadFailures--; res.status(503).json({ success: false, message: 'Service unavailable' }); return; }
+    const { payload: p, signature: s } = req.body || {};
+    if (typeof p !== 'string' || !crypto.verify(null, Buffer.from(p), state.centerPublicKey, Buffer.from(String(s), 'base64'))) { res.status(422).json({ success: false, message: 'Result package signature invalid' }); return; }
+    const b = JSON.parse(p);
+    const sha = sha256Hex(p);
+    const prev = batches.get(b.batchId);
+    if (prev && prev.sha !== sha) { res.status(409).json({ success: false, message: 'batchId reused with different content' }); return; }
+    if (prev) { uploads.push({ batchId: b.batchId, replayed: true }); res.json({ success: true, data: { ack: prev.ack, signature: prev.signature, replayed: true } }); return; }
+    const results = b.attempts.map((a: { idempotencyKey: string; rollNumber: string; status: string }) => {
+      const c = sha256Hex(JSON.stringify(a));
+      const old = attemptsByKey.get(a.idempotencyKey);
+      if (old) return { idempotencyKey: a.idempotencyKey, status: old.sha === c ? 'duplicate' : 'rejected', ...(old.sha === c ? {} : { reason: 'Idempotency key reused with different content' }) };
+      attemptsByKey.set(a.idempotencyKey, { sha: c, status: a.status, rollNumber: a.rollNumber });
+      return { idempotencyKey: a.idempotencyKey, status: 'accepted' };
+    });
+    const n = (k: string) => results.filter((r: { status: string }) => r.status === k).length;
+    const ack = JSON.stringify({ batchId: b.batchId, examId: b.examId, centerCode, batchIndex: b.batchIndex, payloadSha256: sha, receivedAt: new Date().toISOString(), accepted: n('accepted'), duplicates: n('duplicate'), rejected: n('rejected'), attempts: results });
+    const ackSig = crypto.sign(null, Buffer.from(ack), signing.privateKey).toString('base64');
+    batches.set(b.batchId, { sha, ack, signature: ackSig });
+    uploads.push({ batchId: b.batchId, replayed: false });
+    if (state.loseAck) { state.loseAck = false; res.status(502).json({ success: false, message: 'Bad gateway' }); return; }
+    res.json({ success: true, data: { ack: state.tamperAck ? ack.replace('"accepted":', '"accepted":9') : ack, signature: ackSig, replayed: false } });
+  });
   app.post('/center/status', auth, (req, res) => { statusReports.push(req.body); res.json({ success: true, data: { serverTime: new Date().toISOString() } }); });
 
   const server = http.createServer(app);
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  return { url, server, centerCode, activationKey, examId, releaseCode, accessCodes, packageId, file, statusReports, state, close: () => new Promise((r) => server.close(r)) };
+  return { url, server, centerCode, activationKey, examId, releaseCode, accessCodes, packageId, file, statusReports, state, batches, attemptsByKey, uploads, close: () => new Promise((r) => server.close(r)) };
 };
