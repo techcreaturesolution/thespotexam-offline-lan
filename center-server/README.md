@@ -57,7 +57,7 @@ The exam's `elapsed_ms` is persisted every second and advanced only by this proc
 
 ## Admin dashboard (phase 5)
 
-React + Vite + Tailwind app in `dashboard/`, served by the Center Server at `/dashboard/` (same origin as the admin API, so the pinned certificate covers it). Build it with `npm run build:dashboard`; the server serves `dashboard/dist` (override with `CENTER_DASHBOARD_DIR`) and redirects `/` to it. For UI work run `npm --prefix dashboard run dev` with `CENTER_URL=http://127.0.0.1:<port>` pointing at a running server.
+React + Vite + Tailwind app in `dashboard/`, served by the Center Server at `/dashboard/` (same origin as the admin API, so the pinned certificate covers it). Build it with `npm run build:dashboard`; the server serves `dashboard/dist` (override with `CENTER_DASHBOARD_DIR`) and redirects `/` to it. Local demo: `npm run build:dashboard` then `CENTER_TLS=false CENTER_DATA_DIR=<fresh dir> npm run demo` and open `/dashboard/` (the demo needs a fresh data dir each run). For UI work run `npm --prefix dashboard run dev` with `CENTER_URL=http://127.0.0.1:<port>` pointing at a running server.
 
 It covers first-time admin password setup (server PC only), activation, paper download, unlock with the release code, start / pause / resume / extra time / end, a live per-PC table (not started, in progress, disconnected, submitted, absent) with per-candidate reset, a live violation feed and result-sync status with "Sync now".
 

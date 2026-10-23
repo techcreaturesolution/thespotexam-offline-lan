@@ -23,7 +23,7 @@ import { startMockCloud } from '../test/mockCloud';
   const cfg = loadConfig({ dataDir, cloudUrl: cloud.url });
   const center = new Center(cfg);
   const adminPassword = 'Admin@12345';
-  if (!center.db.kvGet('admin_password_hash')) center.setupAdmin(adminPassword, true);
+  center.setupAdmin(adminPassword, true);
   await center.activate(cloud.centerCode, cloud.activationKey, 'demo');
   await center.paper.sync('demo');
   await center.paper.unlock(cloud.examId, 'demo', cloud.releaseCode);
