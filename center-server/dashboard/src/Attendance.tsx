@@ -70,7 +70,10 @@ function Verify({ examId, row, roster, onDone }: { examId: string; row: RosterRo
         </div>
       ) : (
         <div className="space-y-2">
-          <p className="text-sm text-green-700">Present ({row.method?.replace(/_/g, ' ')}) at {row.verifiedAt ? new Date(row.verifiedAt).toLocaleTimeString() : ''}{row.overrideReason ? ` — ${row.overrideReason}` : ''}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-green-700">Present ({row.method?.replace(/_/g, ' ')}) at {row.verifiedAt ? new Date(row.verifiedAt).toLocaleTimeString() : ''}{row.overrideReason ? ` — ${row.overrideReason}` : ''}</p>
+            <button className="btn ml-auto" disabled={busy} onClick={() => { if (window.confirm(`Mark ${row.rollNumber} absent instead? This also releases the PC.`)) run(() => api('POST', `${path}/attendance/${row.rollNumber}`, { status: 'absent' })); }}>Mark absent</button>
+          </div>
           {row.machineId ? (
             <div className="flex items-center gap-2 text-sm"><span>Allocated PC: <b>{row.hostname || row.machineId}</b></span><button className="btn" disabled={busy} onClick={() => run(() => api('DELETE', `${path}/allocate/${row.rollNumber}`))}>Release</button></div>
           ) : (
