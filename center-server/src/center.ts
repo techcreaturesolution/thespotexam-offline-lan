@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import os from 'os';
 import path from 'path';
+import { AttendanceService } from './attendance';
 import { Audit } from './audit';
 import { CloudClient } from './cloud';
 import { Config } from './config';
@@ -30,6 +31,7 @@ export class Center {
   readonly paper: PaperService;
   readonly engine: ExamEngine;
   readonly sync: SyncEngine;
+  readonly attendance: AttendanceService;
   certFingerprint = '';
   private hb?: NodeJS.Timeout;
 
@@ -40,6 +42,8 @@ export class Center {
     this.cloud = new CloudClient(cfg.cloudUrl, () => this.creds());
     this.paper = new PaperService(this.db, this.sealer, this.audit, this.cloud, path.join(cfg.dataDir, 'packages'), () => this.centerCode(), () => this.db.kvGet('cloud_public_key'));
     this.engine = new ExamEngine(this.db, this.paper, this.audit, this.sealer, cfg);
+    this.attendance = new AttendanceService(this.db, this.paper, this.audit, this.sealer, cfg.requireAttendance);
+    this.engine.loginGate = (examId, candidateId, rollNumber, machineId) => this.attendance.checkLogin(examId, candidateId, rollNumber, machineId);
     this.sync = new SyncEngine(this.db, this.cloud, this.paper, this.engine, this.audit, cfg, () => {
       const centerCode = this.db.kvGet('center_code');
       const privateKey = this.signingKey();
@@ -47,6 +51,7 @@ export class Center {
       const cloudPublicKey = this.db.kvGet('cloud_public_key');
       return centerCode && privateKey && publicKey && cloudPublicKey ? { centerCode, privateKey, publicKey, cloudPublicKey } : null;
     });
+    this.sync.attendance = this.attendance;
     this.paper.statusBase = () => this.statusBody();
   }
 

@@ -55,6 +55,25 @@ Env vars, or `config.json` in the data dir (`%ProgramData%\TheSpotExam\CenterSer
 
 The exam's `elapsed_ms` is persisted every second and advanced only by this process's monotonic clock while the exam is running (ticks are capped at 5 s, so sleep/suspend can't burn time). Candidate PC clocks and wall-clock changes have no effect. Remaining time = duration + exam extra + candidate extra − elapsed. After a crash the timer resumes from the last checkpoint.
 
+## Admin dashboard (phase 5)
+
+React + Vite + Tailwind app in `dashboard/`, served by the Center Server at `/dashboard/` (same origin as the admin API, so the pinned certificate covers it). Build it with `npm run build:dashboard`; the server serves `dashboard/dist` (override with `CENTER_DASHBOARD_DIR`) and redirects `/` to it. Local demo: `npm run build:dashboard` then `CENTER_TLS=false CENTER_DATA_DIR=<fresh dir> npm run demo` and open `/dashboard/` (the demo needs a fresh data dir each run). For UI work run `npm --prefix dashboard run dev` with `CENTER_URL=http://127.0.0.1:<port>` pointing at a running server.
+
+It covers first-time admin password setup (server PC only), activation, paper download, unlock with the release code, start / pause / resume / extra time / end, a live per-PC table (not started, in progress, disconnected, submitted, absent) with per-candidate reset, a live violation feed and result-sync status with "Sync now".
+
+## Attendance and PC allocation (phase 5)
+
+The attendance desk verifies each candidate, marks attendance and allocates a PC before login:
+
+- `GET /admin/exams/:examId/attendance`: roster (registered photo from the paper package, attendance, allocated PC) plus free registered PCs.
+- `POST /admin/exams/:examId/attendance/:rollNumber` `{ status: 'present'|'absent', method: 'photo'|'fingerprint'|'face'|'photo_fingerprint'|'manual_override', photoMatched, matchScore?, livePhoto?, fingerprintTemplate?, fingerprintFormat?, overrideReason? }`. `photo` needs `photoMatched: true`; fingerprint methods need a template; `manual_override` needs a reason. Live photos and fingerprint templates (base64) are sealed with the center master key at rest.
+- `POST /admin/exams/:examId/allocate/:rollNumber` `{ machineId? }` (omit `machineId` to take the next free online PC); `DELETE` the same path releases it. Only present candidates can be allocated, and nothing moves after the candidate has logged in (reset the candidate first).
+- `GET /client/assignment` (machine auth): what the PC's login screen shows (roll number, name, seat, photo).
+
+Login rules: a PC allocated to a candidate accepts only that candidate; an allocated candidate can only log in on their PC; absent candidates cannot log in. With `REQUIRE_ATTENDANCE=true` (or `requireAttendance` in `center.config.json`) a candidate must be present and allocated before login; the default `false` keeps walk-in login for centers without an attendance desk. Every action and every refused login is audit-logged. The result upload carries per-attempt attendance evidence (method, operator, time, photo match, allocated PC, whether a fingerprint or live photo was captured), never the raw biometric data. Attendance rows are purged with the rest of the exam data after the retention period.
+
+The candidate roster is inside the encrypted paper package, so attendance opens once the paper is unlocked.
+
 ## LAN API (candidate client)
 
 Headers: `X-Machine-Id`, `X-Machine-Token` (from `/client/register`), and `Authorization: Bearer <sessionToken>` after login. Sessions are bound to the PC; a candidate can only move to another PC after an invigilator reset.

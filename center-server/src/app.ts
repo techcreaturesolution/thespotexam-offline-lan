@@ -1,4 +1,6 @@
 import express, { NextFunction, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { Center } from './center';
@@ -17,7 +19,9 @@ export const createApp = (c: Center) => {
   const app = express();
   app.disable('x-powered-by');
   app.use(helmet());
-  app.use(express.json({ limit: '2mb' }));
+  const jsonSmall = express.json({ limit: '2mb' });
+  const jsonLarge = express.json({ limit: '8mb' });
+  app.use((req, res, next) => (/^\/admin\/exams\/[^/]+\/attendance\//.test(req.path) ? jsonLarge : jsonSmall)(req, res, next));
 
   const machine = (req: Request) => c.engine.authMachine(req.header('X-Machine-Id'), req.header('X-Machine-Token'), ip(req));
   const candidate = (req: Request): AttemptRow => c.engine.authCandidate(machine(req), bearer(req));
@@ -39,6 +43,7 @@ export const createApp = (c: Center) => {
     try { a = c.engine.authCandidate(m, bearer(req)); } catch { a = null; }
     return c.engine.logViolations(m, a, req.body?.violations);
   }));
+  app.get('/client/assignment', ok((req) => c.attendance.assignment(machine(req))));
   app.post('/heartbeat', ok((req) => c.engine.heartbeat(candidate(req))));
 
   // ───────── local admin ─────────
@@ -58,9 +63,20 @@ export const createApp = (c: Center) => {
   app.get('/admin/exams/:examId/live', ok((req) => { admin(req); return c.engine.live(req.params.examId); }));
   app.get('/admin/exams/:examId/verify', ok((req) => { admin(req); return { answers: c.engine.verifyAnswers(req.params.examId), audit: c.audit.verify() }; }));
   app.get('/admin/violations', ok((req) => { admin(req); return c.engine.violations(req.query.examId as string | undefined, Number(req.query.sinceId || 0)); }));
+  app.get('/admin/exams/:examId/attendance', ok((req) => { admin(req); return c.attendance.list(req.params.examId); }));
+  app.post('/admin/exams/:examId/attendance/:rollNumber', ok((req) => c.attendance.mark(req.params.examId, req.params.rollNumber, req.body || {}, admin(req))));
+  app.post('/admin/exams/:examId/allocate/:rollNumber', ok((req) => c.attendance.allocate(req.params.examId, req.params.rollNumber, req.body?.machineId, admin(req))));
+  app.delete('/admin/exams/:examId/allocate/:rollNumber', ok((req) => c.attendance.release(req.params.examId, req.params.rollNumber, admin(req))));
   app.get('/admin/sync', ok((req) => { admin(req); return { pendingBatches: c.sync.pendingBatches(), exams: c.sync.status() }; }));
   app.post('/admin/sync/run', ok((req) => { admin(req); return c.sync.retryNow(); }));
   app.get('/admin/audit', ok((req) => { admin(req); return { entries: c.audit.list(Number(req.query.limit || 200), req.query.examId as string | undefined), chain: c.audit.verify() }; }));
+
+  const ui = process.env.CENTER_DASHBOARD_DIR || path.join(__dirname, '..', 'dashboard', 'dist');
+  if (fs.existsSync(path.join(ui, 'index.html'))) {
+    app.get('/', (_req, res) => res.redirect('/dashboard/'));
+    app.use('/dashboard', express.static(ui, { index: 'index.html', maxAge: '1h' }));
+    app.get('/dashboard/*', (_req, res) => res.sendFile(path.join(ui, 'index.html')));
+  }
 
   app.use((_req, res) => res.status(404).json({ success: false, message: 'Not found' }));
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

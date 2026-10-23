@@ -18,6 +18,7 @@ export interface Config {
   syncBatchSize: number;
   syncBackoffBaseSeconds: number;
   syncBackoffMaxSeconds: number;
+  requireAttendance: boolean;
   appVersion: string;
 }
 
@@ -56,6 +57,7 @@ export const loadConfig = (overrides: Partial<Config> = {}): Config => {
     syncBatchSize: num(process.env.SYNC_BATCH_SIZE, file.syncBatchSize ?? 50),
     syncBackoffBaseSeconds: num(process.env.SYNC_BACKOFF_BASE_SECONDS, file.syncBackoffBaseSeconds ?? 15),
     syncBackoffMaxSeconds: num(process.env.SYNC_BACKOFF_MAX_SECONDS, file.syncBackoffMaxSeconds ?? 900),
+    requireAttendance: process.env.REQUIRE_ATTENDANCE ? process.env.REQUIRE_ATTENDANCE === 'true' : file.requireAttendance ?? false,
     appVersion: process.env.npm_package_version || '0.1.0',
     ...overrides,
   };

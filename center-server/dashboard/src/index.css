@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.btn { @apply px-3 py-1.5 rounded-md text-sm font-medium border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50; }
+.btn-primary { @apply px-3 py-1.5 rounded-md text-sm font-medium bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50; }
+.btn-danger { @apply px-3 py-1.5 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50; }
+.input { @apply border border-gray-300 rounded-md px-3 py-1.5 text-sm w-full; }
+.card { @apply bg-white rounded-lg border border-gray-200 p-4; }
