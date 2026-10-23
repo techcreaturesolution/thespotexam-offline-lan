@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import AttendanceDesk from './Attendance';
 import { api, ApiError, ExamInfo, Live, LiveRow, Status, SyncExam, token, Violation } from './api';
 
 const fmt = (s: number) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -216,6 +217,7 @@ export default function App() {
   const [examId, setExamId] = useState<string | null>(null);
   const [live, setLive] = useState<Live | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'control' | 'attendance'>('control');
   const papers = useAction(() => refresh());
 
   const refresh = useCallback(async () => {
@@ -253,8 +255,14 @@ export default function App() {
         </div>
       )}
       {status?.activated && !status.exams.length && <p className="text-sm text-gray-500">No exams yet. Click “Download papers” while online.</p>}
-      {exam && <ExamControls exam={exam} live={live} onChange={refresh} />}
-      {exam && live && (
+      {exam && (
+        <div className="flex gap-2 border-b">
+          {(['control', 'attendance'] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`px-3 py-2 text-sm -mb-px border-b-2 ${tab === t ? 'border-primary-600 text-primary-700 font-medium' : 'border-transparent text-gray-600'}`}>{t === 'control' ? 'Exam control' : 'Attendance desk'}</button>)}
+        </div>
+      )}
+      {exam && tab === 'attendance' && <AttendanceDesk examId={exam.examId} examState={exam.state} />}
+      {exam && tab === 'control' && <ExamControls exam={exam} live={live} onChange={refresh} />}
+      {exam && live && tab === 'control' && (
         <div className="grid lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2"><PcGrid exam={exam} live={live} onChange={refresh} /></div>
           <ViolationFeed examId={exam.examId} />

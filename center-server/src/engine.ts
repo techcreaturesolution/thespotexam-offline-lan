@@ -34,6 +34,8 @@ export class ExamEngine {
   private lastTick = process.hrtime.bigint();
   private timer?: NodeJS.Timeout;
 
+  loginGate?: (examId: string, candidateId: string, rollNumber: string, machineId: string) => void;
+
   constructor(private readonly db: Db, private readonly paper: PaperService, private readonly audit: Audit, private readonly sealer: Sealer, private readonly cfg: Config) {}
 
   start() {
@@ -129,6 +131,12 @@ export class ExamEngine {
     }
     let a = this.db.get<AttemptRow>('SELECT * FROM attempts WHERE exam_id = ? AND candidate_id = ?', examId, c.id);
     if (a && FINAL_STATUSES.includes(a.status)) throw new HttpError(409, `Attempt already ${a.status}`);
+    if (this.loginGate) {
+      try { this.loginGate(examId, c.id, rollNumber, machineId); } catch (err) {
+        this.audit.log(`machine:${machineId}`, 'auth.login_refused', examId, { rollNumber, reason: (err as Error).message });
+        throw err;
+      }
+    }
     if (a?.machine_id && a.machine_id !== machineId) throw new HttpError(409, 'Candidate is bound to another PC; ask the invigilator to reset');
     const late = p.exam.settings.lateEntryMinutes;
     if (!a?.login_at && e.started_at && late > 0 && e.elapsed_ms > late * 60_000) throw new HttpError(403, 'Late entry window has closed');

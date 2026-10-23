@@ -41,6 +41,7 @@ interface AckBody {
  * An exam/attempt is "synced" only after a cloud-signed ack is verified.
  */
 export class SyncEngine {
+  attendance?: { forSync(examId: string): Map<string, unknown>; purge(examId: string): void };
   private timer?: NodeJS.Timeout;
   private running = false;
 
@@ -111,6 +112,7 @@ export class SyncEngine {
     const answers = this.db.all<Record<string, string | number | null>>('SELECT * FROM answers WHERE exam_id = ?', examId);
     const viol = this.db.all<Record<string, string | null>>('SELECT * FROM violations WHERE exam_id = ? ORDER BY id', examId);
     const durSec = (e.duration_min || 0) * 60 + e.extra_seconds;
+    const att = this.attendance?.forSync(examId);
     const items = attempts.map((a) => ({
       idempotencyKey: String(a.idempotency_key), candidateId: String(a.candidate_id), rollNumber: String(a.roll_number), status: String(a.status),
       startedAt: a.started_at ?? undefined, submittedAt: a.submitted_at ?? undefined,
@@ -121,6 +123,7 @@ export class SyncEngine {
         flagged: !!x.flagged, version: Number(x.version), savedAt: String(x.saved_at), timeTakenSeconds: x.time_taken_seconds == null ? undefined : Number(x.time_taken_seconds), late: !!x.late,
       })),
       violations: viol.filter((v) => v.candidate_id === a.candidate_id).map((v) => ({ type: String(v.type), detail: v.detail ?? undefined, at: String(v.at) })),
+      attendance: att?.get(String(a.candidate_id)),
     }));
     const summary = {
       expected: attempts.length, attempts: attempts.length,
@@ -210,6 +213,7 @@ export class SyncEngine {
       this.db.tx(() => {
         for (const t of ['answers', 'violations', 'attempts', 'sync_attempts']) this.db.run(`DELETE FROM ${t} WHERE exam_id = ?`, s.exam_id);
         this.db.run(`UPDATE sync_batches SET payload = '', signature = '' WHERE exam_id = ?`, s.exam_id);
+        this.attendance?.purge(s.exam_id);
         this.db.run('UPDATE sync_exams SET purged_at = ? WHERE exam_id = ?', nowIso(), s.exam_id);
       });
       this.paper.purge(s.exam_id);
