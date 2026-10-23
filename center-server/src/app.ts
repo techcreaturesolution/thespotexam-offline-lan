@@ -1,4 +1,6 @@
 import express, { NextFunction, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { Center } from './center';
@@ -61,6 +63,13 @@ export const createApp = (c: Center) => {
   app.get('/admin/sync', ok((req) => { admin(req); return { pendingBatches: c.sync.pendingBatches(), exams: c.sync.status() }; }));
   app.post('/admin/sync/run', ok((req) => { admin(req); return c.sync.retryNow(); }));
   app.get('/admin/audit', ok((req) => { admin(req); return { entries: c.audit.list(Number(req.query.limit || 200), req.query.examId as string | undefined), chain: c.audit.verify() }; }));
+
+  const ui = process.env.CENTER_DASHBOARD_DIR || path.join(__dirname, '..', 'dashboard', 'dist');
+  if (fs.existsSync(path.join(ui, 'index.html'))) {
+    app.get('/', (_req, res) => res.redirect('/dashboard/'));
+    app.use('/dashboard', express.static(ui, { index: 'index.html', maxAge: '1h' }));
+    app.get('/dashboard/*', (_req, res) => res.sendFile(path.join(ui, 'index.html')));
+  }
 
   app.use((_req, res) => res.status(404).json({ success: false, message: 'Not found' }));
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

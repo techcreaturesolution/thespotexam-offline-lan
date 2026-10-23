@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test",
     "test": "node --test --import tsx test/*.test.ts",
-    "demo": "tsx scripts/demo.ts"
+    "demo": "tsx scripts/demo.ts",
+    "build:dashboard": "npm --prefix dashboard ci && npm --prefix dashboard run build"
   },
   "dependencies": {
     "express": "^4.22.3",

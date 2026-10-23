@@ -55,6 +55,12 @@ Env vars, or `config.json` in the data dir (`%ProgramData%\TheSpotExam\CenterSer
 
 The exam's `elapsed_ms` is persisted every second and advanced only by this process's monotonic clock while the exam is running (ticks are capped at 5 s, so sleep/suspend can't burn time). Candidate PC clocks and wall-clock changes have no effect. Remaining time = duration + exam extra + candidate extra − elapsed. After a crash the timer resumes from the last checkpoint.
 
+## Admin dashboard (phase 5)
+
+React + Vite + Tailwind app in `dashboard/`, served by the Center Server at `/dashboard/` (same origin as the admin API, so the pinned certificate covers it). Build it with `npm run build:dashboard`; the server serves `dashboard/dist` (override with `CENTER_DASHBOARD_DIR`) and redirects `/` to it. For UI work run `npm --prefix dashboard run dev` with `CENTER_URL=http://127.0.0.1:<port>` pointing at a running server.
+
+It covers first-time admin password setup (server PC only), activation, paper download, unlock with the release code, start / pause / resume / extra time / end, a live per-PC table (not started, in progress, disconnected, submitted, absent) with per-candidate reset, a live violation feed and result-sync status with "Sync now".
+
 ## LAN API (candidate client)
 
 Headers: `X-Machine-Id`, `X-Machine-Token` (from `/client/register`), and `Authorization: Bearer <sessionToken>` after login. Sessions are bound to the PC; a candidate can only move to another PC after an invigilator reset.
